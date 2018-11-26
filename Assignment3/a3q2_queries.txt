@@ -1,0 +1,107 @@
+-- CSC 370 - Spring 2018
+-- Assignment 3: Queries for Question 2 (ferries)
+-- Name:Jordan (Yu-Lin) Wang	
+-- Student ID: V00786970
+
+-- Place your query for each sub-question in the appropriate position
+-- below. Do not modify or remove the '-- Question 2x --' header before
+-- each question.
+
+
+-- Question 2a --
+with 
+	vessel_1 as 
+		(select vessel_name as vessel_name1, route_number, scheduled_departure 
+			from routes natural join sailings natural join fleet
+			order by vessel_name),
+	vessel_2 as
+		(select vessel_name as vessel_name2, route_number, scheduled_departure 
+			from routes natural join sailings natural join fleet
+			order by vessel_name),
+	vessels_order as 
+		(select vessel_name1, vessel_name2, vessel_1.route_number as route_number1,
+		vessel_2.route_number as route_number2, vessel_1.scheduled_departure as departure_1,
+		vessel_2.scheduled_departure as departure_2 from vessel_1 natural join vessel_2
+			where vessel_1.route_number = vessel_2.route_number
+				and vessel_1.scheduled_departure = vessel_2.scheduled_departure
+				and vessel_name1 <> vessel_name2),
+	vessels_pair as 
+		(select vessel_name1 as vessel1, vessel_name2 as vessel2, count(route_number1) as num_pairings
+			from vessels_order 
+			group by vessel_name1, vessel_name2 
+			order by vessel_name1, vessel_name2)
+select * from vessels_pair where vessel1<vessel2 order by num_pairings desc;
+
+-- Question 2b --
+with 
+	vessel_nom_duration as 
+		(select route_number, nominal_duration
+			from routes natural join sailings 
+			group by route_number
+			order by route_number),
+	actual_duration as
+		(select scheduled_departure, actual_departure, arrival, route_number,
+	 		 (extract(epoch from arrival) - extract(epoch from scheduled_departure))/60 as duration_minutes
+				from sailings),	
+	vessel_avg_duration as 
+		(select route_number, avg(duration_minutes)
+			from actual_duration
+			group by route_number  
+			order by route_number )
+select * 
+	from vessel_nom_duration natural join vessel_avg_duration;
+
+-- Question 2c --
+with 
+	actual_duration as
+		(select extract(month from scheduled_departure) as month,
+			extract(day from scheduled_departure) as day, route_number,
+	 		(extract(epoch from arrival) - extract(epoch from scheduled_departure))/60 as duration_minutes
+				from sailings
+				where route_number = 1),
+	not_late as 
+		(select month, day from actual_duration natural join routes
+			except
+		 select month, day 
+		 	from actual_duration natural join routes
+		 	where duration_minutes - nominal_duration >=5)
+select 
+	(month)::int, count(day) as count 
+	from not_late
+	group by month;
+
+-- Question 2d --
+with 
+	total_sailings as 
+		(select vessel_name, count(actual_departure) as total_sailings
+			from sailings natural join routes
+			group by vessel_name
+			order by vessel_name),
+	actual_duration as
+		(select vessel_name, extract(month from scheduled_departure) as month,
+			extract(day from scheduled_departure) as day, route_number,
+	 		(extract(epoch from arrival) - extract(epoch from scheduled_departure))/60 as duration_minutes
+				from sailings 
+				order by vessel_name),
+	late_duration as
+		(select vessel_name, count(day) as late_sailings
+			from actual_duration natural join routes
+			where duration_minutes - nominal_duration >= 5
+			group by vessel_name),
+	join_table as 
+		(select total_sailings.vessel_name, total_sailings, coalesce(late_sailings, 0) as late_sailings
+			from late_duration full outer join total_sailings
+				on late_duration.vessel_name = total_sailings.vessel_name)
+select 
+	vessel_name, total_sailings, late_sailings, 
+		cast(late_sailings as decimal) /total_sailings as late_fraction 
+	from join_table
+	order by vessel_name;
+
+-- Question 2e --
+
+-- Question 2f --
+
+-- Question 2g --
+
+

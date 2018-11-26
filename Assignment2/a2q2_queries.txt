@@ -1,0 +1,63 @@
+-- CSC 370 - Spring 2018
+-- Assignment 2: Queries for Question 2 (ferries)
+-- Name: Jordan (Yu-Lin) Wang
+-- Student ID: V00786970
+
+-- Place your query for each sub-question in the appropriate position
+-- below. Do not modify or remove the '-- Question 2x --' header before
+-- each question.
+
+
+-- Question 2a --
+select 
+	distinct (vessel_name), route_number 
+		from sailings 
+	where route_number = 1;
+
+-- Question 2b --
+select 
+	vessel_name, count(vessel_name) as count 
+		from 
+			sailings 
+	group by vessel_name order by vessel_name;
+
+-- Question 2c --
+
+select * from (with num as (select 
+	distinct (vessel_name), route_number
+	from
+	sailings group by vessel_name, route_number order by vessel_name)
+select vessel_name, count(route_number) as numb
+from num group by vessel_name) as T1 where numb >=2;
+
+-- Question 2d --
+with
+   number_routes as 
+      (select route_number, vessel_name from sailings
+      group by vessel_name, route_number),
+   oldest as 
+      (select route_number, min(year_built) as old 
+       from number_routes natural join fleet 
+       group by route_number)
+select route_number, vessel_name, year_built
+  from
+    oldest 
+     natural join 
+    number_routes 
+     natural join 
+    fleet 
+where year_built = old 
+order by route_number;
+
+-- Question 2e --
+with 
+  source as 
+   (select distinct(source_port) 
+from sailings where vessel_name = 'Queen of New Westminster') 
+select distinct(vessel_name) 
+  from 
+   source 
+    natural join 
+     sailings 
+  order by vessel_name;
+

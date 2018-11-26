@@ -1,0 +1,103 @@
+-- CSC 370 - Spring 2018
+-- Assignment 3: Queries for Question 3 (vwsn_1year)
+-- Name: Jordan (Yu-Lin) Wang
+-- Student ID: V00786970
+
+-- Place your query for each sub-question in the appropriate position
+-- below. Do not modify or remove the '-- Question 3x --' header before
+-- each question.
+
+
+-- Question 3a --
+with highest_temperature as 
+	(select station_id, temperature, observation_time
+		from observations 
+			order by temperature 
+			desc fetch first row only)
+select station_id, name, temperature, observation_time
+	from highest_temperature
+		inner join	
+		stations
+		on station_id = id;
+
+-- Question 3b --
+with 
+	max_temps as 
+		(select station_id, max(temperature) as max_temperature
+		from observations 
+		where station_id>=1 and station_id<=10
+		group by station_id),
+	all_max as 
+		(select station_id, max_temperature, observation_time
+			from max_temps natural join 
+				observations
+			where temperature = max_temperature and station_id = station_id)
+select station_id, name, max_temperature, observation_time
+	from 
+		all_max inner join stations
+		on station_id = id
+	order by station_id;
+
+-- Question 3c --
+with 
+	extract_month as
+		(select station_id, 
+			extract(month from observation_time) as month, extract(day from observation_time) as day
+		from observations),
+	no_june as
+		(select station_id from extract_month
+			except
+		select station_id from extract_month where month = 6
+			order by station_id)
+select station_id, name 
+	from no_june 
+		inner join
+		stations
+		on station_id = id;
+
+-- Question 3d --
+with
+	extract_date as 
+		(select temperature,
+			date_trunc('day', observation_time)::date as date
+			from observations),
+	daily_average as	
+		(select avg(temperature) as daily_avg, date
+			from extract_date
+			group by date
+			order by date),
+	rank_daily_hot as
+		(select daily_avg, date,
+			rank() over(partition by date_trunc('month',date)::date order by daily_avg desc) as rank_temperature
+			from daily_average),
+	rank_month_hot as
+		(select daily_avg, date, extract(month from date) as month, 
+			extract(year from date) as year, rank_temperature
+			from rank_daily_hot
+			where rank_temperature >= 1 and rank_temperature <=10),
+	hottest_average as 
+		(select year, month, avg(daily_avg) as hottest10_average
+			from rank_month_hot
+			group by year, month
+			order by year, month),
+	rank_daily_cold as
+		(select daily_avg, date,
+			rank() over(partition by date_trunc('month',date)::date order by daily_avg asc) as rank_temperature
+			from daily_average),
+	rank_month_cold as
+		(select daily_avg, date, extract(month from date) as month,
+			extract(year from date) as year, rank_temperature
+			from rank_daily_cold
+			where rank_temperature >= 1 and rank_temperature <=10),
+	coldest_average as
+		(select year, month, avg(daily_avg) as coldest10_average
+			from rank_month_cold
+				group by year, month
+				order by year, month)
+select hottest_average.year::int, hottest_average.month::int, hottest10_average, coldest10_average
+	from hottest_average inner join coldest_average
+	on hottest_average.month = coldest_average.month;
+
+-- Question 3e --
+
+

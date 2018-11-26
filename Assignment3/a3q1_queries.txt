@@ -1,0 +1,48 @@
+-- CSC 370 - Spring 2018
+-- Assignment 3: Queries for Question 1 (imdb)
+-- Name: Jordan (Yu-Lin) Wang
+-- Student ID: V00786970
+
+-- Place your query for each sub-question in the appropriate position
+-- below. Do not modify or remove the '-- Question 1x --' header before
+-- each question.
+
+
+-- Question 1a --
+with 
+	primary_names as 
+  		(select title_id, name as primary_name from title_names 
+   		where is_primary = true),
+	films_year as 
+		(select title_id, year, rating, votes
+			from ratings natural join titles
+			where year >= 2000 
+				and year <= 2017 
+				and title_type = 'movie'
+				and votes >= 10000
+			order by year),
+	highest_rating as 
+		(select year, max(rating) as rating
+			from films_year group by year
+			order by year)
+select primary_names, year, rating, votes
+	from primary_names natural join 
+		 films_year natural join
+		 highest_rating
+		 order by year;
+
+-- Question 1b --
+with 
+	primary_names as 
+		(select title_id, name as primary_name from title_names 
+   			where is_primary = true),
+	episode_count as 
+		(select series_id as title_id, count(title_id) as episode_count 
+			from tv_series natural join series_episodes 
+			group by series_id)
+select primary_names, title_id, episode_count 
+	from episode_count natural join primary_names
+		where episode_count>=6000
+		order by episode_count desc;
+
+

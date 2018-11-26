@@ -1,0 +1,231 @@
+-- create_sceme.txt
+-- CSC 370 Assignment 4
+-- Jordan Wang	
+-- V00786970
+
+rollback;
+drop table if exists course_offerings;
+drop table if exists courses;
+drop table if exists students;
+drop table if exists grades;
+drop table if exists prerequisites;
+drop table if exists enrollments;
+drop function if exists students_ignore_duplicates() cascade;
+drop function if exists courses_ignore_duplicates() cascade;
+drop function if exists course_offerings_ignore_duplicates() cascade;
+drop function if exists enrollments_ignore_duplicates() cascade;
+drop function if exists prerequisites_ignore_duplicates() cascade;
+drop function if exists check_prerequisites() cascade;
+drop function if exists grades_ignore_duplicates() cascade;
+
+create table students(
+		ID varchar(9) primary key,
+		student_name varchar(255),
+
+		check(length(ID) = 9),
+		check(length(student_name) > 0)
+		);
+
+create table courses(
+		code varchar(10) primary key
+		);
+
+create table course_offerings(
+		code varchar(10),
+		student_name varchar(128),
+		term_code int,
+		instructor_name varchar(255),
+		max_capacity int,
+
+		check(length(student_name) > 0),
+		check(length(instructor_name) > 0),
+		check(term_code > 0),
+		check(max_capacity >= 0),
+
+		primary key (code, term_code),
+		foreign key (code) references courses(code)
+				on delete cascade
+				on update cascade
+				deferrable
+		);
+
+create table enrollments(
+		ID varchar(9),
+		code varchar(10),
+		term_code int,
+		primary key (ID, code, term_code),
+
+		foreign key (ID) references students(ID)
+				on delete cascade
+				on update cascade
+				deferrable,
+		foreign key (code, term_code) references course_offerings(code, term_code)
+				on delete cascade
+				on update cascade
+				deferrable
+		);
+
+create table prerequisites(
+		code varchar(10),
+		term_code int,
+		prereq varchar(10),
+
+		primary key (code, term_code, prereq),
+		foreign key (code, term_code) references course_offerings(code, term_code)
+				on delete cascade
+				on update cascade
+				deferrable,
+		foreign key (prereq) references courses(code)
+				on delete cascade
+				on update cascade
+				deferrable
+		);
+
+create table grades(
+		ID varchar(9),
+		code varchar(10),
+		term_code int,
+		grade int,
+
+		check(grade >= 0 and grade <= 100),
+
+		primary key (ID, code, term_code),
+		foreign key (ID) references students(ID)
+				on delete cascade
+				on update cascade
+				deferrable,
+		foreign key (code, term_code) references course_offerings(code, term_code)
+				on delete cascade
+				on update cascade
+				deferrable
+		);
+
+
+create function students_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from students where ID = new.ID) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger students_ignore_duplicates_trigger
+	before insert on students
+	for each row
+	execute procedure students_ignore_duplicates();
+
+
+create function courses_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from courses where code = new.code) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger courses_ignore_duplicates_trigger
+	before insert on courses
+	for each row
+	execute procedure courses_ignore_duplicates();
+	
+create function course_offerings_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from course_offerings where code = new.code and term_code = new.term_code) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger course_offerings_ignore_duplicates_trigger
+	before insert on course_offerings
+	for each row
+	execute procedure course_offerings_ignore_duplicates();
+	
+
+create function enrollments_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from enrollments where ID = new.ID and code = new.code and term_code = new.term_code) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger enrollments_ignore_duplicates_trigger
+	before insert on enrollments
+	for each row
+	execute procedure enrollments_ignore_duplicates();
+	
+create function prerequisites_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from prerequisites where code = new.code and term_code = new.term_code and prereq = new.prereq) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger prerequisites_ignore_duplicates_trigger
+	before insert on prerequisites
+	for each row
+	execute procedure prerequisites_ignore_duplicates();
+
+create function check_prerequisites()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from 
+		(select prereq from prerequisites where code = new.code and term_code = new.term_code
+		except
+		(select code from enrollments where ID = new.ID and term_code < new.term_code
+			union 
+		select code from grades where ID = new.ID and grade >= 50 and term_code < new.term_code)) as X) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger check_prerequisites_trigger
+	before insert on enrollments
+	for each row
+	execute procedure check_prerequisites();
+	
+create function grades_ignore_duplicates()
+returns trigger as
+$BODY$
+begin
+	if (select count(*) from grades where ID = new.ID and code = new.code and term_code = new.term_code) > 0
+	then return null;
+end if;
+return new;
+end
+$BODY$
+language plpgsql;
+
+create trigger grades_ignore_duplicates_trigger
+	before insert on grades
+	for each row
+	execute procedure grades_ignore_duplicates();
+	
+
+
